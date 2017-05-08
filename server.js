@@ -1,6 +1,24 @@
 var Botkit = require( 'botkit' );
 var timer = {};
 var timerCount = 0;
+var express = require( 'express' );
+var path = require( 'path' );
+var app = express();
+var server = require( 'http' ).createServer();
+
+var WebSocketServer = require( 'ws' ).Server;
+var wss = new WebSocketServer( { server: server } );
+
+wss.on( 'connection', function( ws ) {
+    var id = setInterval( function() {
+        ws.send( JSON.stringify( process.memoryUsage() ), function() { /* ignore errors */ } );
+    }, 100 );
+    console.log( 'started client interval' );
+    ws.on( 'close', function() {
+        console.log( 'stopping client interval' );
+        clearInterval( id );
+    } );
+} );
 
 var controller = Botkit.slackbot( {
     debug: true,
@@ -11,7 +29,7 @@ var bot = controller.spawn( {
 } ).startRTM();
 
 controller.hears( [ 'hello', 'hi' ], 'direct_message,direct_mention,mention,message_received,ambient', function( bot, message ) {
-  bot.reply(message, 't\'as un problème ?');
+    bot.reply( message, 't\'as un problème ?' );
     stopTimer();
     startTimer( 10, function() {
         bot.reply( message, 'test' );
@@ -38,93 +56,11 @@ controller.hears( [ 'hello', 'hi' ], 'direct_message,direct_mention,mention,mess
     // } );
 } );
 
-controller.hears('stop', 'ambient', function(bot, message) {
+controller.hears( 'stop', 'ambient', function( bot, message ) {
     stopTimer();
-    bot.reply(message, 'timer stopped');
-})
+    bot.reply( message, 'timer stopped' );
+} )
 
-controller.hears( [ 'call me (.*)', 'my name is (.*)' ], 'direct_message,direct_mention,mention', function( bot, message ) {
-    var name = message.match[ 1 ];
-    controller.storage.users.get( message.user, function( err, user ) {
-        if ( !user ) {
-            user = {
-                id: message.user,
-            };
-        }
-        user.name = name;
-        controller.storage.users.save( user, function( err, id ) {
-            bot.reply( message, 'Got it. I will call you ' + user.name + ' from now on.' );
-        } );
-    } );
-} );
-
-controller.hears( [ 'what is my name', 'who am i' ], 'direct_message,direct_mention,mention', function( bot, message ) {
-
-    controller.storage.users.get( message.user, function( err, user ) {
-        if ( user && user.name ) {
-            bot.reply( message, 'Your name is ' + user.name );
-        } else {
-            bot.startConversation( message, function( err, convo ) {
-                if ( !err ) {
-                    convo.say( 'I do not know your name yet!' );
-                    convo.ask( 'What should I call you?', function( response, convo ) {
-                        convo.ask( 'You want me to call you `' + response.text + '`?', [
-                            {
-                                pattern: 'yes',
-                                callback: function( response, convo ) {
-                                    // since no further messages are queued after this,
-                                    // the conversation will end naturally with status == 'completed'
-                                    convo.next();
-                                }
-                            },
-                            {
-                                pattern: 'no',
-                                callback: function( response, convo ) {
-                                    // stop the conversation. this will cause it to end with status == 'stopped'
-                                    convo.stop();
-                                }
-                            },
-                            {
-                                default: true,
-                                callback: function( response, convo ) {
-                                    convo.repeat();
-                                    convo.next();
-                                }
-                            }
-                        ] );
-
-                        convo.next();
-
-                    }, { 'key': 'nickname' } ); // store the results in a field called nickname
-
-                    convo.on( 'end', function( convo ) {
-                        if ( convo.status == 'completed' ) {
-                            bot.reply( message, 'OK! I will update my dossier...' );
-
-                            controller.storage.users.get( message.user, function( err, user ) {
-                                if ( !user ) {
-                                    user = {
-                                        id: message.user,
-                                    };
-                                }
-                                user.name = convo.extractResponse( 'nickname' );
-                                controller.storage.users.save( user, function( err, id ) {
-                                    bot.reply( message, 'Got it. I will call you ' + user.name + ' from now on.' );
-                                } );
-                            } );
-
-
-
-                        } else {
-                            // this happens if the conversation ended prematurely for some reason
-                            bot.reply( message, 'OK, nevermind!' );
-                        }
-                    } );
-                }
-            } );
-        }
-    } );
-} );
 
 
 controller.hears( [ 'shutdown' ], 'direct_message,direct_mention,mention', function( bot, message ) {
@@ -189,7 +125,7 @@ function formatUptime( uptime ) {
 function startTimer( limit, callback ) {
     timerCount++;
     if ( timerCount < limit ) {
-        timer = setTimeout( startTimer.bind(null, limit, callback ), 1000 )
+        timer = setTimeout( startTimer.bind( null, limit, callback ), 1000 )
     } else {
         callback();
     }
@@ -199,3 +135,35 @@ function stopTimer() {
     clearTimeout( timer );
     timerCount = 0;
 }
+
+var express = require( 'express' )
+    // , path = require('path')
+    // , favicon = require('serve-favicon')
+    // , logger = require('morgan')
+    // , cookieParser = require('cookie-parser')
+    ,
+    bodyParser = require( 'body-parser' )
+    // , conferenceRouter = require('./routes/conference')
+    // , tokenRouter = require('./routes/token')
+    ,
+    app = express();
+
+const util = require( 'util' );
+
+var twilio = require( 'twilio' );
+
+app.use( bodyParser.json() ); // to support JSON-encoded bodies
+app.use( bodyParser.urlencoded( { extended: true } ) ); // to support URL-encoded bodies
+
+app.get( '/voice/:clientId', function( request, response ) {
+    response.type( 'text/xml' );
+    if ( request.params.clientId ) {
+        response.send( '<Response><Dial><Client>' + request.params.clientId + '</Client></Dial></Response>' );
+    }
+} );
+
+
+server.on( 'request', app );
+server.listen( 8080, function() {
+    console.log( 'Listening on http://localhost:8080' );
+} );
