@@ -30,8 +30,35 @@ var sellsy = new Sellsy( {
     }
 } );
 
-var botToken = 'xoxb-175444252721-kr6junoMyy0KNxtkwoktzW4H';
-var appToken = 'xoxp-164235888548-164199315090-175758624274-38f00700004614b0fdb5ee5675fc7f30';
+var config = {};
+if (process.env.MONGOLAB_URI) {
+    var BotkitStorage = require('botkit-storage-mongo');
+    config = {
+        storage: BotkitStorage({mongoUri: process.env.MONGOLAB_URI}),
+    };
+} else {
+    config = {
+        json_file_store: ((process.env.TOKEN)?'./db_slack_bot_ci/':'./db_slack_bot_a/'), //use a different name if an app or CI
+    };
+}
+
+/**
+ * Are being run as an app or a custom integration? The initialization will differ, depending
+ */
+
+if (process.env.TOKEN || process.env.SLACK_TOKEN) {
+    //Treat this as a custom integration
+    var customIntegration = require('./lib/custom_integrations');
+    var token = (process.env.TOKEN) ? process.env.TOKEN : process.env.SLACK_TOKEN;
+    var controller = customIntegration.configure(token, config, onInstallation);
+} else if (process.env.CLIENT_ID && process.env.CLIENT_SECRET && process.env.PORT) {
+    //Treat this as an app
+    var app = require('./lib/apps');
+    var controller = app.configure(process.env.PORT, process.env.CLIENT_ID, process.env.CLIENT_SECRET, config, onInstallation);
+} else {
+    console.log('Error: If this is a custom integration, please specify TOKEN in the environment. If this is an app, please specify CLIENTID, CLIENTSECRET, and PORT in the environment');
+    process.exit(1);
+}
 
 var appController = Botkit.slackbot( {
     // debug: false
@@ -40,9 +67,9 @@ var appSlack = appController.spawn( {
     token: appToken
 } );
 
-var controller = Botkit.slackbot( {
-    // debug: false
-} );
+// var controller = Botkit.slackbot( {
+//     // debug: false
+// } );
 
 var bot = controller.spawn( {
     token: botToken
