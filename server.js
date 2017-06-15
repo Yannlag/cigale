@@ -8,7 +8,7 @@
  * With custom integrations, we don't have a way to find out who installed us, so we can't message them :(
  */
 
-console.log(process.env.SLACK_CLIENT_ID, process.env.SLACK_CLIENT_SECRET, process.env.BEEPBOOP_TOKEN);
+console.log(process.env);
 
 var BotkitStorageBeepBoop = require( 'botkit-storage-beepboop' )
 
